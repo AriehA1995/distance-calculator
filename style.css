@@ -1,0 +1,124 @@
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Tahoma, sans-serif;
+}
+body * {
+    box-sizing: border-box;
+}
+#map {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 50%;
+    height: 90%;
+    border: 1px solid navy;
+}
+#coords {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background-color: blanchedalmond;
+    border: 1px solid black;
+    padding: 5px;
+    width: 50%;
+}
+#content {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 45%;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid navy;
+    border-radius: 3px;
+}
+#searchBox {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    width: 30%;
+    z-index: 1;
+}
+.desc {
+    display: inline-block;
+    font-weight: bold;
+}
+.value {
+    display: inline-block;
+    margin-right: 15px;
+}
+.help {
+    text-align: right;
+    float: right;
+}
+.form-row {
+    margin: 5px;
+    font-size: 20px;
+    display: grid;
+    grid-template-columns: 33% 33% 33%;
+}
+.form-row input {
+    background-color: lightgray;
+    cursor: not-allowed;
+    text-align: center;
+}
+button {
+    cursor: pointer;
+    background-color: #55e;
+    border: 1px solid black;
+    border-radius: 5px;
+    font-size: 16px;
+    color: white;
+}
+button:hover {
+    background-color: lightblue;
+    font-weight: bold;
+    color: black;
+}
+.form-row button {
+    margin-left: 15%;
+}
+#calculate-button, #new-calc-button {
+    width: 50%;
+    margin: 10px auto;
+    font-size: 20px;
+    padding: 5px;
+}
+#results {
+    border-top: 1px solid black;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 15px;
+}
+h2 {
+    margin: 5px 0;
+    padding: 0;
+    text-decoration: underline;
+}
+.result {
+    font-weight: bold;
+    font-size: 18px;
+    margin: 5px;
+    width: 100%;
+}
+.result span {
+    font-weight: normal;
+}
+#slider {
+    cursor: grab;
+    width: 30%;
+}
+#slider:active {
+    cursor: grabbing;
+}
+.section {
+    margin-bottom: 5px;
+    border-bottom: 1px dashed black;
+    padding-bottom: 10px;
+}
+#dDiff {
+    color: green;
+}

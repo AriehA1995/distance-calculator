@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Distance Calculator</title>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.15.0/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.15.0/mapbox-gl.js"></script>
+    <script id="search-js" defer src="https://api.mapbox.com/search-js/v1.3.0/web.js"></script>
+    <script src="turf.min.js" charset="utf-8"></script>
+    <link rel="icon" type="image/png" href="icons8-globe-showing-europe-africa-32.png">
+    <link rel="stylesheet" href="style.css" type="text/css">
+    <script>
+        const accessToken = 'YOUR ACCESS TOKEN';
+        function centerMap (coords, type) {
+            map.setCenter (coords);
+            switch (type) {
+                case 'country':
+                    map.setZoom (5);
+                    break;
+                case 'place':
+                    map.setZoom (12);
+                    break;
+                case 'locality':
+                    map.setZoom (15);
+                    break;
+                case 'street':
+                case 'address':
+                    map.setZoom (18);
+                    break;
+                default:
+                    map.setZoom (12);
+            }
+            long.textContent = coords[0];
+            lat.textContent = coords[1];
+        }
+
+        function updateInput (input, coords) {
+            input.value = `(${coords.lng.toFixed(8)}, ${coords.lat.toFixed(8)})`;
+        }
+
+        function lngLatToArray (lngLat) {
+            return [lngLat.lng, lngLat.lat];
+        }
+
+        function buttonClicked (input) {
+            map.getCanvas().style.cursor = 'crosshair';
+            map.once("click", (e) => {
+                let coords = e.lngLat.wrap ();
+                updateInput (input, coords);
+                if (travel[input.name] != null) { // marker already exists
+                    travel[input.name].setLngLat(coords);
+                }
+                else {
+                    let options = null;
+                    if (input.name == "end"){
+                        options = {"color": "red"};
+                    }
+                    const marker = new mapboxgl.Marker(options);
+                    marker.setLngLat(coords).addTo(map);
+                    travel[input.name] = marker;
+                }
+                map.getCanvas().style.cursor = 'grab';
+            });
+        }
+
+        async function getRoute(start, end) {
+            const query = await fetch(
+            `https://api.mapbox.com/directions/v5/mapbox/driving/${start[0]},${start[1]};${end[0]},${end[1]}?steps=true&geometries=geojson&access_token=${accessToken}`
+            );
+            if (!query.ok) {
+                alert ("Error fetching route from Mapbox Directions API");
+                newCalc ();
+                throw new Error(`HTTP error! status: ${query.status}`);
+            }
+            const json = await query.json();
+            if (json.code != "Ok") {
+                alert ("Error in response from Mapbox Directions API: " + json.message);
+                newCalc ();
+                throw new Error("Error in response from Mapbox Directions API: " + json.message);
+            }
+            return json.routes[0];
+        }
+
+        function formatTime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const remainingSeconds = Math.floor(seconds % 60);
+            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+        }
+
+        function drawLine (start, end) {
+            map.addSource('aerial', {
+                'type': 'geojson',
+                'data': {
+                    'type': 'Feature',
+                    'properties': {},
+                    'geometry': {
+                        'type': 'LineString',
+                        'coordinates': [
+                            lngLatToArray (start),
+                            lngLatToArray (end)
+                        ]
+                    }
+                }
+            });
+            map.addLayer({
+                'id': 'aerial',
+                'type': 'line',
+                'source': 'aerial',
+                'layout': {
+                    'line-join': 'round',
+                    'line-cap': 'round'
+                },
+                'paint': {
+                    'line-color': 'green',
+                    'line-width': 2
+                }
+            });
+        }
+
+        function drawRoute (geometry) {
+            map.addSource('travel', {
+                'type': 'geojson',
+                'data': {
+                    'type': 'Feature',
+                    'properties': {},
+                    'geometry': geometry
+                }
+            });
+            map.addLayer({
+                'id': 'travel',
+                'type': 'line',
+                'source': 'travel',
+                'layout': {
+                    'line-join': 'round',
+                    'line-cap': 'round'
+                },
+                'paint': {
+                    'line-color': '#855',
+                    'line-width': 2
+                }
+            });
+        }
+
+        function extendBounds (start, end) {
+            const bounds = new mapboxgl.LngLatBounds();
+            bounds.extend(start);
+            bounds.extend(end);
+            map.fitBounds(bounds, { padding: 75 });
+            const center = map.getCenter();
+            long.textContent = center.lng;
+            lat.textContent = center.lat;
+        }
+
+        async function calculate () {
+            if (travel.start == null || travel.end == null) {
+                alert ("Please select both a start and destination point.");
+                return;
+            }
+            const start = travel.start.getLngLat().wrap();
+            const end = travel.end.getLngLat().wrap();
+            drawLine (start, end);
+            travel.distance = turf.distance(lngLatToArray (start), lngLatToArray (end), {units: 'kilometers'});
+
+            await getRoute(lngLatToArray (start), lngLatToArray (end)).then (route => {
+                travel.tDistance = route.distance / 1000; // in km
+                travel.tTime = route.duration; // in seconds
+                travel.tSpeed = travel.tDistance / (route.duration / 3600); // in km/h
+                drawRoute (route.geometry);
+            });
+            travel.dDiff = travel.distance - travel.tDistance;
+            travel.dDiffPercent = (travel.dDiff / travel.tDistance) * 100;
+
+            displayResults (travel);
+            extendBounds(start, end);
+        }
+
+        function displayResults (travel) {
+            document.getElementById('results').style.display = 'flex';
+            document.querySelectorAll ("button").forEach (btn => btn.style.display = "none");
+            document.getElementById('new-calc-button').style.display = "block";
+            document.getElementById('aDist').textContent = `${travel.distance.toFixed(2)} km`;
+            document.getElementById('tDist').textContent = `${travel.tDistance.toFixed(2)} km`;
+            document.getElementById('tTime').textContent = formatTime(travel.tTime);
+            document.getElementById('tSpeed').textContent = `${travel.tSpeed.toFixed(0)} km/h`;
+            document.getElementById('dDiff').textContent = `${travel.dDiff.toFixed(2)} km (${travel.dDiffPercent.toFixed(2)} %)`;
+            updateFlight (travel);
+        }
+
+        function updateFlight (travel){
+            travel.fSpeed = parseInt (slider.value);
+            travel.fTime = travel.distance / travel.fSpeed * 3600; // in seconds
+            travel.tDiff = (travel.fTime - travel.tTime) / 60; // in minutes
+            travel.tDiffPercent = (travel.tDiff * 60 / travel.tTime) * 100; // percentage of the difference
+
+            document.getElementById('fTime').textContent = formatTime(travel.fTime);
+            const tDiff = document.getElementById('tDiff');
+            tDiff.textContent = `${travel.tDiff.toFixed(2)} min (${travel.tDiffPercent.toFixed(2)} %)`;
+            if (travel.tDiff < 0) {
+                tDiff.style.color = "green";
+            }
+            else {
+                tDiff.style.color = "red";
+            }
+        }
+
+        function newCalc () {
+            document.getElementById('results').style.display = 'none';
+            document.querySelectorAll ("button").forEach (btn => btn.style.display = "inline-block");
+            travel.start.remove();
+            travel.end.remove();
+            Object.keys(travel).forEach (key => {
+                if (key != "start" && key != "end") {
+                    delete travel[key];
+                }
+                else {
+                    travel[key] = null;
+                }
+            });
+            startInput.value = "";
+            endInput.value = "";
+            map.removeLayer('aerial');
+            map.removeSource('aerial');
+            map.removeLayer('travel');
+            map.removeSource('travel');
+        }
+
+        function sliderUpdate () {
+            const sliderValue = document.getElementById('slider-value');
+            sliderValue.textContent = travel.fSpeed + " km/h";
+            updateFlight (travel);
+        }
+    </script>
+</head>
+<body>
+    <div id="map">
+    </div>
+    <mapbox-search-box id="searchBox" placeholder="Search for places"></mapbox-search-box>
+    <div id="coords">
+        <div class="desc">Longitude:</div>
+        <div class="value" id="long">35.235</div>
+        <div class="desc">Latitude:</div>
+        <div class="value" id="lat">31.778</div>
+        <div class="help">(Right click to update)</div>
+    </div>
+    <section id="content">
+        <h1>Distance Calculator</h1>
+        <div class="form-row">
+            <label>Start: </label>
+            <input type="text" name="start" readonly />
+            <button id="start-button">Select from map</button>
+        </div>
+        <div class="form-row">
+            <label>Destination: </label>
+            <input type="text" name="end" readonly />
+            <button id="end-button">Select from map</button>
+        </div>
+        <button id="calculate-button" onclick="calculate()">Calculate</button>
+        <div id="results">
+            <h2>Results</h2>
+            <div class="result">Travel distance: <span id="tDist"></span></div>
+            <div class="result">Travel time: <span id="tTime"></span></div>
+            <div class="result section">Travel average speed: <span id="tSpeed"></span></div>
+            <div class="result">Aerial distance: <span id="aDist"></span></div>
+            <div class="result">
+                <label for="slider">Flight speed:</label>
+                <input type="range" id="slider" min="10" max="100" value="50" />
+                <span id="slider-value">50 km/h</span>
+            </div>
+            <div class="result section">Flight time: <span id="fTime"></span></div>
+            <div class="result">Distance difference: <span id="dDiff"></span></div>
+            <div class="result">Time difference: <span id="tDiff"></span></div>
+            <button id="new-calc-button" onclick="newCalc()">New Calculation</button>
+        </div>
+    </section>
+    <script>
+        mapboxgl.accessToken = accessToken;
+        const long = document.getElementById('long');
+        const lat = document.getElementById('lat');
+        const map = new mapboxgl.Map({
+            container: 'map',
+            center: [long.textContent, lat.textContent],
+            zoom: 7
+        });
+        const searchBox = document.getElementById('searchBox');
+        searchBox.setAttribute ('access-token', accessToken);
+        searchBox.setAttribute ("types", "country,place,locality,street,address");
+
+        const script = document.getElementById('search-js');
+        // wait for the Mapbox Search JS script to load before using it
+        script.onload = function () {
+            // add an event listener to handle the `retrieve` event
+            searchBox.addEventListener('retrieve', (e) => {
+                const feature = e.detail.features[0];
+                if (feature){
+                    centerMap (feature.geometry.coordinates, feature.properties.feature_type);
+                }
+                else {
+                    alert ("Error in getting results");
+                }
+            });
+        }
+
+        map.on('contextmenu', (e) => {
+            let coords = e.lngLat.wrap ();
+            long.textContent = coords.lng;
+            lat.textContent = coords.lat;
+        });
+        
+        const travel = {"start": null, "end": null};
+        const startInput = document.querySelector('input[name="start"]');
+        const endInput = document.querySelector('input[name="end"]');
+        const startButton = document.getElementById('start-button');
+        const endButton = document.getElementById('end-button');
+        const slider = document.getElementById('slider');
+
+        startButton.onclick = function () {
+            buttonClicked (startInput);
+        }
+        endButton.onclick = function () {
+            buttonClicked (endInput);
+        }
+        slider.oninput = function () {
+            sliderUpdate ();
+        }
+    </script>
+</body>
+</html>
