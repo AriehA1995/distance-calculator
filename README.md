@@ -12,3 +12,5 @@ The application also compare the two travel options and print the difference bet
 ## Using the project
 - Replace the access token inside the index.html file (line 14) with your own MapBox access token
 - Open the index.html inside a simple web server like apache
+## Demo
+View the Demo: https://youtu.be/gHYW-Jo8ffo
